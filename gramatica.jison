@@ -1,5 +1,5 @@
 /**
- * Ejemplo mi primer proyecto con Jison utilizando Nodejs en Ubuntu
+ * Traducción dirigida por la Sintaxis que genera C3D
  */
 
 /* Definición Léxica */
@@ -9,12 +9,8 @@
 
 %%
 
-"Evaluar"			return 'REVALUAR';
-";"					return 'PTCOMA';
 "("					return 'PARIZQ';
 ")"					return 'PARDER';
-"["					return 'CORIZQ';
-"]"					return 'CORDER';
 
 "+"					return 'MAS';
 "-"					return 'MENOS';
@@ -27,50 +23,66 @@
 \n					{}
 
 
-[0-9]+("."[0-9]+)?\b  	return 'DECIMAL';
 [0-9]+\b				return 'ENTERO';
+([a-zA-Z])[a-zA-Z0-9_]*	return 'IDENTIFICADOR';
 
 <<EOF>>				return 'EOF';
 
 .					{ console.error('Este es un error léxico: ' + yytext + ', en la linea: ' + yylloc.first_line + ', en la columna: ' + yylloc.first_column); }
 /lex
 
+%{
+	const instruccionesAPI	= require('./instrucciones').instruccionesAPI;
+	let n = 0; //variable para el control de temporales
+%}
 
-
-/* Asociación de operadores y precedencia */
-
-%left 'MAS' 'MENOS'
-%left 'POR' 'DIVIDIDO'
-%left UMENOS
 
 %start ini
 
 %% /* Definición de la gramática */
 
 ini
-	: instrucciones EOF
+	: E EOF					{ $$ = $1; console.log($$.codigo);}
 ;
 
-instrucciones
-	: instruccion instrucciones
-	| instruccion
-	| error { console.error('Este es un error sintáctico: ' + yytext + ', en la linea: ' + this._$.first_line + ', en la columna: ' + this._$.first_column); }
-;
-
-instruccion
-	: REVALUAR CORIZQ expresion CORDER PTCOMA {
-		console.log('El valor de la expresión es: ' + $3);
+E
+	: E MAS T
+	{
+		n++; 
+		$$ = instruccionesAPI.nuevoTemp("T"+n); 
+		$$.codigo = $$.temporal + " = " + $1.temporal + " + "  + $3.temporal + "\n";
+		$$.codigo = $1.codigo + $3.codigo + $$.codigo;
 	}
+	| E MENOS T
+	{
+		n++; 
+		$$ = instruccionesAPI.nuevoTemp("T"+n); 
+		$$.codigo = $$.temporal + " = " + $1.temporal + " - "  + $3.temporal + "\n";
+		$$.codigo = $1.codigo + $3.codigo + $$.codigo;
+	}
+	| T						{ $$ = $1; }
 ;
 
+T
+	: T POR F
+	{
+		n++; 
+		$$ = instruccionesAPI.nuevoTemp("T"+n); 
+		$$.codigo = $$.temporal + " = " + $1.temporal + " * "  + $3.temporal + "\n";
+		$$.codigo = $1.codigo + $3.codigo + $$.codigo;
+	}
+	| T DIVIDIDO F			
+	{ 
+		n++; 
+		$$ = instruccionesAPI.nuevoTemp("T"+n); 
+		$$.codigo = $$.temporal + " = " + $1.temporal + " / "  + $3.temporal + "\n";
+		$$.codigo = $1.codigo + $3.codigo + $$.codigo;
+	}
+	| F						{ $$ = $1; }
+;
 
-expresion
-	: MENOS expresion %prec UMENOS	{ $$ = $2 *-1; }
-	| expresion MAS expresion		{ $$ = $1 + $3; }
-	| expresion MENOS expresion		{ $$ = $1 - $3; }
-	| expresion POR expresion		{ $$ = $1 * $3; }
-	| expresion DIVIDIDO expresion	{ $$ = $1 / $3; }
-	| ENTERO						{ $$ = Number($1); }
-	| DECIMAL						{ $$ = Number($1); }
-	| PARIZQ expresion PARDER		{ $$ = $2; }
+F
+	: ENTERO				{ $$ = instruccionesAPI.nuevoTemporal(); $$.codigo = ""; $$.temporal = $1; }
+	| PARIZQ E PARDER		{ $$ = $2; }
+	| IDENTIFICADOR 		{ $$ = instruccionesAPI.nuevoTemporal(); $$.codigo = ""; $$.temporal = $1; }
 ;
